@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
+
+    <!-- Material Symbols Outlined font -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
+      rel="stylesheet"
+    />
+
+    <title>How’ve you been?</title>
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Google API Client -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <!-- React + Babel -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Red+Hat+Mono&display=swap');
+      body {
+        font-family: 'Red Hat Mono', monospace;
+        margin: 0;
+      }
+      button {
+        font-family: 'Red Hat Mono', monospace;
+        font-size: 1rem;
+        padding: 1.25rem 1.75rem;
+        border: 0;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+
+      /* configurable line positions */
+      :root {
+        --red-line-pos: 60px;
+        --blue-line-pos: 120px;
+      }
+      /* Vertical red line */
+      #vertical-line {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: var(--red-line-pos);
+        width: 1px;
+        background-color: red;
+        z-index: 1000;
+        opacity: 0;
+      }
+      /* Vertical blue line */
+      #vertical-line-2 {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: var(--blue-line-pos);
+        width: 1px;
+        background-color: blue;
+        z-index: 1000;
+        opacity: 0;
+      }
+      .material-symbols-outlined {
+        font-family: 'Material Symbols Outlined';
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="vertical-line"></div>
+    <div id="vertical-line-2"></div>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      // size-presets and globals
+      const PRESETS = {
+        XS: {
+          EMOJI_SIZE: 5,
+          EMOJI_GAP: 0,
+          LABEL_FONT_SIZE: 14,
+          GAP_BETWEEN_BARS: 2,
+        },
+        S: {
+          EMOJI_SIZE: 10,
+          EMOJI_GAP: 4,
+          LABEL_FONT_SIZE: 16,
+          GAP_BETWEEN_BARS: 4,
+        },
+        M: {
+          EMOJI_SIZE: 24,
+          EMOJI_GAP: 12,
+          LABEL_FONT_SIZE: 18,
+          GAP_BETWEEN_BARS: 4,
+        },
+        L: {
+          EMOJI_SIZE: 42,
+          EMOJI_GAP: 0,
+          LABEL_FONT_SIZE: 24,
+          GAP_BETWEEN_BARS: 6,
+        },
+      };
+      const LEVELS = ['XS', 'S', 'M', 'L'];
+      const EMOJI_MIN_OPACITY = 0.1;
+      const LABEL_TOP_PADDING = 16;
+      const WRAPPER_PADDING = { top: 0, right: 24, bottom: 20, left: 24 };
+      const RED_LINE_POS = 60;
+      const BLUE_LINE_POS = 120;
+      const ACTIONS_ICON_SCALE_FACTOR = 120 / 100;
+      const ACTIONS_PADDING_SCALE_FACTOR = 66 / 100;
+
+      const actionsStyle = {
+        fontSize: `${1 * ACTIONS_ICON_SCALE_FACTOR}rem`,
+        padding: `${1.25 * ACTIONS_PADDING_SCALE_FACTOR}rem ${
+          1.75 * ACTIONS_PADDING_SCALE_FACTOR
+        }rem`,
+      };
+
+      const wrapStyle = {
+        display: 'flex',
+        alignItems: 'flex-end',
+        padding: `${WRAPPER_PADDING.top}px ${WRAPPER_PADDING.right}px ${WRAPPER_PADDING.bottom}px ${WRAPPER_PADDING.left}px`,
+        overflowX: 'auto',
+      };
+
+      const CLIENT_ID =
+        '979238510033-16kbsivk47j7cf56f5p5gma7ccodiomb.apps.googleusercontent.com';
+      const SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly';
+      const SHEET_ID = '16ClDhI78mx3JCwRKQ-p2vmCZBTgIxgxdmbbZvQpram4';
+
+      const EMOJI_MAP = {
+        1: '🤩',
+        2: '😊',
+        3: '😕',
+        4: '😬',
+        5: '😭',
+        6: '😱',
+      };
+      const MONTHS = [
+        'JAN',
+        'FEB',
+        'MAR',
+        'APR',
+        'MAY',
+        'JUN',
+        'JUL',
+        'AUG',
+        'SEP',
+        'OCT',
+        'NOV',
+        'DEC',
+      ];
+
+      function parseDate(raw) {
+        const days = Number(raw);
+        if (!isNaN(days)) {
+          const epoch = Date.UTC(1899, 11, 30);
+          return new Date(epoch + days * 86400000);
+        }
+        return new Date(raw);
+      }
+
+      function Label({ emojiSize, labelFontSize, emojiGap }) {
+        const emojiStyle = { fontSize: `${emojiSize}px` };
+        const colStyle = {
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: emojiGap,
+        };
+        const labelStyle = {
+          fontSize: `${labelFontSize}px`,
+          whiteSpace: 'nowrap',
+          textAlign: 'left',
+          paddingTop: LABEL_TOP_PADDING,
+        };
+
+        return (
+          <div style={wrapStyle}>
+            <div style={colStyle}>
+              {[...Array(6)].map((_, i) => (
+                <div key={i} style={{ ...emojiStyle, opacity: 0 }}>
+                  ⭐️
+                </div>
+              ))}
+              <div id='fixed-label' style={labelStyle}>
+                {' '}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      function EmojiBarChartDiv({
+        data,
+        emojiMap,
+        emojiSize,
+        emojiGap,
+        labelFontSize,
+        barSpacing,
+      }) {
+        const wrapperRef = React.useRef(null);
+        const emojiStyle = { fontSize: `${emojiSize}px` };
+        const colStyle = {
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: emojiGap,
+        };
+        const labelStyle = {
+          fontSize: `${labelFontSize}px`,
+          whiteSpace: 'nowrap',
+          textAlign: 'left',
+          paddingTop: LABEL_TOP_PADDING,
+        };
+
+        const updateFixedLabel = () => {
+          const entries = Array.from(wrapperRef.current.children)
+            .map((col) => {
+              const lbl = col.querySelector('div:last-child');
+              const rect = col.getBoundingClientRect();
+              return lbl ? { text: lbl.textContent, left: rect.left } : null;
+            })
+            .filter(Boolean);
+
+          let chosen = null;
+          const leftOf = entries.filter((e) => e.left <= RED_LINE_POS);
+          if (leftOf.length)
+            chosen = leftOf.reduce((a, b) => (a.left > b.left ? a : b));
+          else if (entries.length)
+            chosen = entries.reduce((a, b) =>
+              Math.abs(a.left - RED_LINE_POS) < Math.abs(b.left - RED_LINE_POS)
+                ? a
+                : b
+            );
+          document.getElementById('fixed-label').textContent = chosen
+            ? chosen.text
+            : '';
+        };
+
+        const updateLabels = () => {
+          Array.from(wrapperRef.current.children).forEach((col, i) => {
+            const lbl = col.querySelector('div:last-child');
+            if (!lbl) return;
+            const isFirst = i === 0;
+            let firstOfMonth = false;
+            if (i > 0) {
+              const a = data[i].date,
+                b = data[i - 1].date;
+              firstOfMonth =
+                a.getUTCMonth() !== b.getUTCMonth() ||
+                a.getUTCFullYear() !== b.getUTCFullYear();
+            }
+            if (!isFirst && !firstOfMonth) lbl.style.opacity = 0;
+            else {
+              const rect = col.getBoundingClientRect();
+              const dBlue = rect.left - BLUE_LINE_POS;
+              const dRed = rect.left - RED_LINE_POS;
+              let op;
+              if (dBlue >= 0) op = 1;
+              else if (dRed <= 0) op = 0;
+              else op = 1 + (dBlue / (RED_LINE_POS - BLUE_LINE_POS)) * (0 - 1);
+              lbl.style.opacity = op;
+            }
+          });
+          updateFixedLabel();
+        };
+
+        React.useEffect(() => {
+          updateLabels();
+        }, [data, emojiSize, emojiGap, labelFontSize, barSpacing]);
+
+        return (
+          <div
+            id='scroll-container'
+            style={wrapStyle}
+            ref={wrapperRef}
+            onScroll={updateLabels}
+          >
+            {data.map(({ date, orig }, i) => {
+              const mm = MONTHS[date.getUTCMonth()],
+                yy = String(date.getUTCFullYear()).slice(-2);
+              const label = `${mm} ${yy}`;
+              return (
+                <div key={i} style={{ ...colStyle, width: barSpacing }}>
+                  {Array.from({ length: 7 - orig }).map((_, j) => (
+                    <div
+                      key={j}
+                      style={{
+                        ...emojiStyle,
+                        opacity: j === 0 ? 1 : EMOJI_MIN_OPACITY,
+                      }}
+                    >
+                      {emojiMap[orig]}
+                    </div>
+                  ))}
+                  <div style={labelStyle}>{label}</div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
+
+      function App() {
+        const [tokenClient, setTokenClient] = React.useState(null);
+        const [sizeKey, setSizeKey] = React.useState('M');
+        const idx = LEVELS.indexOf(sizeKey);
+        const { EMOJI_SIZE, EMOJI_GAP, LABEL_FONT_SIZE, GAP_BETWEEN_BARS } =
+          PRESETS[sizeKey];
+        const BAR_SPACING = EMOJI_SIZE + GAP_BETWEEN_BARS;
+        const centerIndexRef = React.useRef(null);
+
+        const recenter = () => {
+          const c = document.getElementById('scroll-container');
+          if (!c) return;
+          const centerX = c.scrollLeft + c.clientWidth / 2;
+          const candidates = Array.from(c.children).map((col, i) => {
+            const rect = col.getBoundingClientRect();
+            const mid =
+              rect.left - c.getBoundingClientRect().left + rect.width / 2;
+            return { i, dist: Math.abs(mid - c.clientWidth / 2) };
+          });
+          centerIndexRef.current = candidates.reduce((a, b) =>
+            a.dist < b.dist ? a : b
+          ).i;
+        };
+
+        const bumpUp = () => {
+          recenter();
+          if (idx < LEVELS.length - 1) setSizeKey(LEVELS[idx + 1]);
+        };
+        const bumpDown = () => {
+          recenter();
+          if (idx > 0) setSizeKey(LEVELS[idx - 1]);
+        };
+
+        React.useLayoutEffect(() => {
+          const i = centerIndexRef.current;
+          if (i == null) return;
+          const c = document.getElementById('scroll-container');
+          const col = c.children[i];
+          const newMid = col.offsetLeft + col.offsetWidth / 2;
+          const scrollLeft = newMid - c.clientWidth / 2;
+          c.scrollTo({ left: scrollLeft, behavior: 'auto' });
+          centerIndexRef.current = null;
+        }, [sizeKey]);
+
+        const [accessToken, setAccessToken] = React.useState(null);
+        const [data, setData] = React.useState([]);
+
+        React.useEffect(() => {
+          gapi.load('client', async () => {
+            await gapi.client.init({
+              discoveryDocs: [
+                'https://sheets.googleapis.com/$discovery/rest?version=v4',
+              ],
+            });
+          });
+          const tc = google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID,
+            scope: SCOPES,
+            callback: (resp) => {
+              setAccessToken(resp.access_token);
+              fetchAllSheets(resp.access_token);
+            },
+          });
+          setTokenClient(tc);
+        }, []);
+
+        const handleSignIn = () =>
+          tokenClient && tokenClient.requestAccessToken();
+
+        function fetchAllSheets(token) {
+          gapi.client.setToken({ access_token: token });
+          gapi.client.sheets.spreadsheets
+            .get({ spreadsheetId: SHEET_ID })
+            .then((meta) =>
+              Promise.all(
+                meta.result.sheets
+                  .map((s) => s.properties.title)
+                  .map((title) =>
+                    gapi.client.sheets.spreadsheets.values
+                      .get({
+                        spreadsheetId: SHEET_ID,
+                        range: `${title}!A2:B`,
+                        valueRenderOption: 'UNFORMATTED_VALUE',
+                      })
+                      .then((r) => r.result.values || [])
+                  )
+              )
+            )
+            .then((arrs) => {
+              const combined = arrs.flat().map(([rawLabel, rawVal]) => ({
+                date: parseDate(rawLabel),
+                orig: parseInt(rawVal, 10),
+              }));
+              setData(
+                combined
+                  .filter((d) => d.orig >= 1 && d.orig <= 6 && !isNaN(d.date))
+                  .sort((a, b) => b.date - a.date)
+              );
+            })
+            .catch((err) => console.error('Sheets fetch error:', err));
+        }
+
+        const scrollToLatest = () => {
+          const c = document.getElementById('scroll-container');
+          if (c) c.scrollTo({ left: 0, behavior: 'smooth' });
+        };
+        const scrollToEarliest = () => {
+          const c = document.getElementById('scroll-container');
+          if (c)
+            c.scrollTo({
+              left: c.scrollWidth - c.clientWidth,
+              behavior: 'smooth',
+            });
+        };
+
+        return !accessToken ? (
+          <div
+            id='button-wrapper'
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100vw',
+              height: '100vh',
+            }}
+          >
+            <button onClick={handleSignIn}>Let’s begin</button>
+          </div>
+        ) : (
+          <>
+            <div
+              id='actions-wrapper'
+              style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                zIndex: 1000,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '8px',
+                }}
+              >
+                <button
+                  id='scroll to latest'
+                  className='material-symbols-outlined'
+                  style={actionsStyle}
+                  onClick={scrollToLatest}
+                >
+                  keyboard_double_arrow_left
+                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className='material-symbols-outlined'
+                    style={actionsStyle}
+                    onClick={bumpDown}
+                  >
+                    remove
+                  </button>
+                  <button
+                    className='material-symbols-outlined'
+                    style={actionsStyle}
+                    onClick={bumpUp}
+                  >
+                    add
+                  </button>
+                </div>
+                <button
+                  id='scroll to earliest'
+                  className='material-symbols-outlined'
+                  style={actionsStyle}
+                  onClick={scrollToEarliest}
+                >
+                  keyboard_double_arrow_right
+                </button>
+              </div>
+            </div>
+            <div
+              id='chart-wrapper'
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100vw',
+                height: '100vh',
+              }}
+            >
+              <EmojiBarChartDiv
+                data={data}
+                emojiMap={EMOJI_MAP}
+                emojiSize={EMOJI_SIZE}
+                emojiGap={EMOJI_GAP}
+                labelFontSize={LABEL_FONT_SIZE}
+                barSpacing={BAR_SPACING}
+              />
+            </div>
+            <div
+              id='label-wrapper'
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
+                width: '100vw',
+                height: '100vh',
+                pointerEvents: 'none',
+              }}
+            >
+              <Label
+                emojiSize={EMOJI_SIZE}
+                emojiGap={EMOJI_GAP}
+                labelFontSize={LABEL_FONT_SIZE}
+              />
+            </div>
+          </>
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+  </body>
+</html>
