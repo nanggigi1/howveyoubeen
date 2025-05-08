@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!-- tell mobile browsers to use their device width as the CSS viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon" />
@@ -75,30 +77,63 @@
 
     <script type="text/babel">
       // size-presets and globals
+      const MOBILE_BREAKPOINT = 540;
       const PRESETS = {
         XS: {
-          EMOJI_SIZE: 5,
-          EMOJI_GAP: 0,
-          LABEL_FONT_SIZE: 14,
-          GAP_BETWEEN_BARS: 2,
+          desktop: {
+            EMOJI_SIZE: 5,
+            EMOJI_GAP: 0,
+            LABEL_FONT_SIZE: 14,
+            GAP_BETWEEN_BARS: 2,
+          },
+          mobile: {
+            EMOJI_SIZE: 5,
+            EMOJI_GAP: 0,
+            LABEL_FONT_SIZE: 32,
+            GAP_BETWEEN_BARS: 2,
+          },
         },
         S: {
-          EMOJI_SIZE: 10,
-          EMOJI_GAP: 4,
-          LABEL_FONT_SIZE: 16,
-          GAP_BETWEEN_BARS: 4,
+          desktop: {
+            EMOJI_SIZE: 10,
+            EMOJI_GAP: 4,
+            LABEL_FONT_SIZE: 16,
+            GAP_BETWEEN_BARS: 4,
+          },
+          mobile: {
+            EMOJI_SIZE: 10,
+            EMOJI_GAP: 4,
+            LABEL_FONT_SIZE: 36,
+            GAP_BETWEEN_BARS: 4,
+          },
         },
         M: {
-          EMOJI_SIZE: 24,
-          EMOJI_GAP: 12,
-          LABEL_FONT_SIZE: 18,
-          GAP_BETWEEN_BARS: 4,
+          desktop: {
+            EMOJI_SIZE: 24,
+            EMOJI_GAP: 12,
+            LABEL_FONT_SIZE: 18,
+            GAP_BETWEEN_BARS: 4,
+          },
+          mobile: {
+            EMOJI_SIZE: 42,
+            EMOJI_GAP: 0,
+            LABEL_FONT_SIZE: 36,
+            GAP_BETWEEN_BARS: 6,
+          },
         },
         L: {
-          EMOJI_SIZE: 42,
-          EMOJI_GAP: 0,
-          LABEL_FONT_SIZE: 24,
-          GAP_BETWEEN_BARS: 6,
+          desktop: {
+            EMOJI_SIZE: 42,
+            EMOJI_GAP: 0,
+            LABEL_FONT_SIZE: 24,
+            GAP_BETWEEN_BARS: 6,
+          },
+          mobile: {
+            EMOJI_SIZE: 56,
+            EMOJI_GAP: 0,
+            LABEL_FONT_SIZE: 36,
+            GAP_BETWEEN_BARS: 6,
+          },
         },
       };
       const LEVELS = ['XS', 'S', 'M', 'L'];
@@ -184,9 +219,7 @@
                   ⭐️
                 </div>
               ))}
-              <div id='fixed-label' style={labelStyle}>
-                {' '}
-              </div>
+              <div id='fixed-label' style={labelStyle}></div>
             </div>
           </div>
         );
@@ -226,14 +259,15 @@
 
           let chosen = null;
           const leftOf = entries.filter((e) => e.left <= RED_LINE_POS);
-          if (leftOf.length)
+          if (leftOf.length) {
             chosen = leftOf.reduce((a, b) => (a.left > b.left ? a : b));
-          else if (entries.length)
+          } else if (entries.length) {
             chosen = entries.reduce((a, b) =>
               Math.abs(a.left - RED_LINE_POS) < Math.abs(b.left - RED_LINE_POS)
                 ? a
                 : b
             );
+          }
           document.getElementById('fixed-label').textContent = chosen
             ? chosen.text
             : '';
@@ -252,8 +286,9 @@
                 a.getUTCMonth() !== b.getUTCMonth() ||
                 a.getUTCFullYear() !== b.getUTCFullYear();
             }
-            if (!isFirst && !firstOfMonth) lbl.style.opacity = 0;
-            else {
+            if (!isFirst && !firstOfMonth) {
+              lbl.style.opacity = 0;
+            } else {
               const rect = col.getBoundingClientRect();
               const dBlue = rect.left - BLUE_LINE_POS;
               const dRed = rect.left - RED_LINE_POS;
@@ -279,8 +314,8 @@
             onScroll={updateLabels}
           >
             {data.map(({ date, orig }, i) => {
-              const mm = MONTHS[date.getUTCMonth()],
-                yy = String(date.getUTCFullYear()).slice(-2);
+              const mm = MONTHS[date.getUTCMonth()];
+              const yy = String(date.getUTCFullYear()).slice(-2);
               const label = `${mm} ${yy}`;
               return (
                 <div key={i} style={{ ...colStyle, width: barSpacing }}>
@@ -306,16 +341,27 @@
       function App() {
         const [tokenClient, setTokenClient] = React.useState(null);
         const [sizeKey, setSizeKey] = React.useState('M');
+        const [isMobile, setIsMobile] = React.useState(
+          window.innerWidth <= MOBILE_BREAKPOINT
+        );
+
+        React.useEffect(() => {
+          const handleResize = () => {
+            setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
+          };
+          window.addEventListener('resize', handleResize);
+          return () => window.removeEventListener('resize', handleResize);
+        }, []);
+
         const idx = LEVELS.indexOf(sizeKey);
         const { EMOJI_SIZE, EMOJI_GAP, LABEL_FONT_SIZE, GAP_BETWEEN_BARS } =
-          PRESETS[sizeKey];
+          PRESETS[sizeKey][isMobile ? 'mobile' : 'desktop'];
         const BAR_SPACING = EMOJI_SIZE + GAP_BETWEEN_BARS;
         const centerIndexRef = React.useRef(null);
 
         const recenter = () => {
           const c = document.getElementById('scroll-container');
           if (!c) return;
-          const centerX = c.scrollLeft + c.clientWidth / 2;
           const candidates = Array.from(c.children).map((col, i) => {
             const rect = col.getBoundingClientRect();
             const mid =
@@ -369,9 +415,6 @@
           setTokenClient(tc);
         }, []);
 
-        const handleSignIn = () =>
-          tokenClient && tokenClient.requestAccessToken();
-
         function fetchAllSheets(token) {
           gapi.client.setToken({ access_token: token });
           gapi.client.sheets.spreadsheets
@@ -417,6 +460,9 @@
               behavior: 'smooth',
             });
         };
+
+        const handleSignIn = () =>
+          tokenClient && tokenClient.requestAccessToken();
 
         return !accessToken ? (
           <div
@@ -530,6 +576,7 @@
           </>
         );
       }
+
       ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
   </body>
